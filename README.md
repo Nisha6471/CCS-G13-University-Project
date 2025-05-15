@@ -1,183 +1,214 @@
-[9:21 am, 26/4/2025] Shivam@pres: from flask import Flask, request, render_template
+IMPORT LIBRARIES 
+ import cv2
+ import numpy as np
+ import matplotlib.pyplot as plt 
+from tensorflow.keras.applications  import MobileNetV2
+ from tensorflow.keras.applications.mobilenet_v2  import preprocess_input 
+from tensorflow.keras.models  import Model 
+from Crypto.Cipher  import AES 
+from Crypto.Util.Padding import pad, unpad
+ from hashlib import sha256
+ import base64 
+from sklearn.decomposition import PCA
+ from flask import Flask, request, jsonify, render_template 
+import io 
+from PIL import Image
+
+app.py
+# Imports
+from flask import Flask, request, jsonify, render_template
+import cv2
 import numpy as np
-import pandas as pd
-import subprocess
-import os
-import warnings
-import pickle
-from feature import FeatureExtraction
+from preprocess import preprocess_image, extract_features
+from encrypt_decrypt import aes_encrypt, generate_biometric_key
 
-warnings.filterwarnings('ignore')
+# Flask app
+app = Flask(__name__)
 
-file = open("C:/Users/Shivam/Documents/final year project/nisha\Phishing-URL-Detection/Phishing-URL-Detection/pickle/model.pkl", "rb")
-gbc = pickle.load(file)
-file.close()
-
-app = Flask(_name_)
-
-@app.route("/", methods=["GET", "POST"])
+@app.route('/')
 def index():
-    if request.method == "POST":
-        mode = request.form["mode"]
-        input_data = request.form["input"]
+    return render_template('index.html')
 
-        if mode == "url":
-            obj = FeatureExtraction(input_data)
-            x = np.array(obj.getFeaturesList()).reshape(1, 30)
-            y_pred = gbc.predict(x)[0]
-          …
-[9:21 am, 26/4/2025] Shivam@pres: app.py
-[9:21 am, 26/4/2025] Shivam@pres: import ipaddress
-import re
-import urllib.request
-from bs4 import BeautifulSoup
-import socket
-import requests
-from googlesearch import search
-import whois
-from datetime import date, datetime
-import time
-from dateutil.parser import parse as date_parse
-from urllib.parse import urlparse
+@app.route('/upload', methods=['POST'])
+def upload_images():
+    # Read uploaded images
+    image1 = request.files['image1']
+    image2 = request.files['image2']
 
-class FeatureExtraction:
-    features = []
-    def _init_(self,url):
-        self.features = []
-        self.url = url
-        self.domain = ""
-        self.whois_response = ""
-        self.urlparse = ""
-        self.response = ""
-        self.soup = ""
+    img1 = cv2.imdecode(np.frombuffer(image1.read(), np.uint8), cv2.IMREAD_COLOR)
+    img2 = cv2.imdecode(np.frombuffer(image2.read(), np.uint8), cv2.IMREAD_COLOR)
 
-        try:
-            self.response = requests.get(url)
-            self.soup = BeautifulSoup(response.text, 'html.parser')
-        except:
-            pass
+    # Preprocess and extract features
+    img1_features = extract_features(img1)
+    img2_features = extract_features(img2)
 
-        try:
-            self.urlparse = urlparse(url)
-            …
-[9:22 am, 26/4/2025] Shivam@pres: feature.py
-[9:22 am, 26/4/2025] Shivam@pres: /* Cyber Security Theme */
-:root {
-  --cyber-dark: #0a0a16;
-  --cyber-darker: #050510;
-  --cyber-blue: #00f0ff;
-  --cyber-blue-dark: #0066ff;
-  --cyber-green: #00ff88;
-  --cyber-red: #ff003c;
-  --cyber-purple: #bd00ff;
-  --cyber-gray: #1a1a2e;
-  --cyber-light: #e0e0e8;
-}
+    # Combine features and generate a biometric key
+    combined_features = np.concatenate((img1_features, img2_features))
+    biometric_key = generate_biometric_key(combined_features)
 
-body {
-  margin: 0;
-  padding: 0;
-  font-family: 'Share Tech Mono', monospace;
-  background-color: var(--cyber-darker);
-  color: var(--cyber-light);
-  height: 100vh;
-  overflow: hidden;
-}
+    # Encrypt the combined features
+    combined_features_str = ','.join(map(str, combined_features))
+    iv, encrypted_data = aes_encrypt(combined_features_str, biometric_key)
 
-.cyber-container {
-  display: flex;
-  height: 100vh;
-}
+    return jsonify({
+        "encrypted_data": encrypted_data,
+        "iv": iv
+    })
 
-/* Left Panel - Input Section */
-.cyber-input-panel {
-  width: 40%;
-  background-color: var(--cyber-dark);
-  padding: 2rem;
-  border-right: 1px solid rgba(0, 240, 255, 0.1);
-  display: flex;
-  flex-direction: column;
-  position: relative;
-  overflow:…
-[9:22 am, 26/4/2025] Shivam@pres: style.css
-[9:23 am, 26/4/2025] Shivam@pres: <!DOCTYPE html>
-<html lang="en">
+if __name__ == '__main__':
+    app.run(debug=True)
+
+capture.py
+# Imports
+import cv2
+
+# Capture image
+def capture_image(window_name="Capture Image"):
+    cap = cv2.VideoCapture(0)
+    print(f"Press 'c' to capture the image for {window_name}.")
+    while True:
+        ret, frame = cap.read()
+        if not ret:
+            print("Failed to capture video frame.")
+            break
+
+        cv2.imshow(window_name, frame)
+        key = cv2.waitKey(1) & 0xFF
+        if key == ord('c'):
+            cap.release()
+            cv2.destroyAllWindows()
+            return frame
+        elif key == ord('q'):
+            print("Camera feed closed.")
+            cap.release()
+            cv2.destroyAllWindows()
+            return None
+
+preprocess.py
+# Imports
+import cv2
+import numpy as np
+from tensorflow.keras.applications import MobileNetV2
+from tensorflow.keras.applications.mobilenet_v2 import preprocess_input
+from tensorflow.keras.models import Model
+
+# Initialize the feature extractor
+base_model = MobileNetV2(weights="imagenet", include_top=False)
+feature_extractor = Model(inputs=base_model.input, outputs=base_model.output)
+
+# Image preprocessing
+def preprocess_image(image, target_size=(224, 224)):
+    image = cv2.resize(image, target_size)
+    image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+    image = preprocess_input(image.astype(np.float32))
+    return np.expand_dims(image, axis=0)
+
+# Extract features
+def extract_features(image):
+    preprocessed_image = preprocess_image(image)
+    features = feature_extractor.predict(preprocessed_image)
+    return features.flatten()
+
+encrypt_decrypt.py
+# Imports
+from Crypto.Cipher import AES
+from Crypto.Util.Padding import pad, unpad
+from hashlib import sha256
+import base64
+
+# Generate biometric key
+def generate_biometric_key(features):
+    features_str = ','.join(map(str, features))
+    hash_key = sha256(features_str.encode()).digest()
+    return hash_key[:16]  # 16-byte AES key
+
+# AES encryption
+def aes_encrypt(data, key):
+    cipher = AES.new(key, AES.MODE_CBC)
+    ct_bytes = cipher.encrypt(pad(data.encode(), AES.block_size))
+    iv = base64.b64encode(cipher.iv).decode('utf-8')
+    ct = base64.b64encode(ct_bytes).decode('utf-8')
+    return iv, ct
+
+# AES decryption
+def aes_decrypt(iv, ciphertext, key):
+    iv = base64.b64decode(iv)
+    ciphertext = base64.b64decode(ciphertext)
+    cipher = AES.new(key, AES.MODE_CBC, iv)
+    decrypted_data = unpad(cipher.decrypt(ciphertext), AES.block_size)
+    return decrypted_data.decode('utf-8')
+
+test.py
+# Imports
+import unittest
+from encrypt_decrypt import generate_biometric_key, aes_encrypt, aes_decrypt
+import numpy as np
+
+# Unit tests
+class TestBiometricSystem(unittest.TestCase):
+    def test_encryption_decryption(self):
+        features = np.random.rand(100)
+        key = generate_biometric_key(features)
+        data = "test data"
+
+        iv, encrypted_data = aes_encrypt(data, key)
+        decrypted_data = aes_decrypt(iv, encrypted_data, key)
+
+        self.assertEqual(data, decrypted_data)
+
+if __name__ == "__main__":
+    unittest.main()
+
+templates/index.html
+html
+<!DOCTYPE html>
+<html>
 <head>
-    <meta charset="UTF-8">
-    <meta http-equiv="X-UA-Compatible" content="IE=edge">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="Advanced cyber security tool for detecting malicious URLs and PE files">
-    <meta name="keywords" content="phishing url,phishing,cyber security,machine learning,classifier,python,malware detection">
-    <meta name="author" content="VAIBHAV BICHAVE">
-
-    <!-- BootStrap -->
-    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.0/css/bootstrap.min.css"
-        integrity="sha384-9aIt2nRpC12Uk9gS9baDl411NQApFmC26EwAOH8WgZl5MYYxFfc+NcPb1dKGj7Sk" crossorigin="anonymous">
-    
-    <!-- Font Awesome for icons -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
-    
-    <!-- Cyber-style Google Font -->
-    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
-    
-    <link href="static/styles.css" rel="stylesheet">
-    <title>CYBER THREAT DETECTOR</title>
+    <title>Biometric System</title>
+    <link rel="stylesheet" type="text/css" href="/static/styles.css">
 </head>
-
 <body>
-    <div class="cyber-container">
-        <!-- Left Panel - Input Section -->
-        <div class="cyber-input-panel">
-            <div class="cyber-header">
-                <h1><i class="fas fa-shield-virus"></i> CYBER THREAT DETECTOR</h1>
-                <p class="cyber-subtitle">ANALYZE URLS & EXECUTABLES FOR MALICIOUS CONTENT</p>
-            </div>
-            
-            <div class="cyber-form-container">
-                <form action="/" method="post">
-                    <div class="cyber-form-group">
-                        <label for="mode"><i class="fas fa-cogs"></i> SCAN MODE</label>
-                        <select name="mode" id="mode" class="cyber-select" required>
-                            <option value="url">URL ANALYSIS</option>
-                            <option value="pe">PE FILE SCAN</option>
-                        </select>
-                    </div>
-                    
-                    <div class="cyber-form-group">
-                        <label for="input"><i class="fas fa-terminal"></i> TARGET INPUT</label>
-                        <input type="text" name="input" id="input" class="cyber-input" placeholder="Enter URL or file path..." required>
-                        <div class="cyber-input-border"></div>
-                    </div>
-                    
-                    <button type="submit" class="cyber-scan-button">
-                        <i class="fas fa-search"></i> INITIATE SCAN
-                        <div class="cyber-button-lights">
-                            <span></span>
-                            <span></span>
-                            <span></span>
-                        </div>
-                    </button>
-                </form>
-            </div>
-            
-            <div class="cyber-footer">
-                <p>SYSTEM STATUS: <span class="cyber-status">OPERATIONAL</span></p>
-                <div class="cyber-pulse"></div>
-            </div>
-        </div>
-        
-        <!-- Right Panel - Results Section -->
-        <div class="cyber-results-panel">
-            <div class="cyber-results-header">
-                <h2><i class="fas fa-clipboard-list"></i> SCAN RESULTS</h2>
-                <div class="cyber-scan-animation">
-                    <div class="cyber-scan-line"></div>
-                </div>
-            </div>
-            
-            <div class="cyber-results-content">
-                <h3 id="prediction">READY TO SCAN</h3>
-                
-                <div class="cyber-results-actions">
-                    <button class="cyber-proceed-button" id="button1" role="button" onclick="window.open('{{url}}')" target="_blank">
-                    
+    <h1>Upload Biometric Images</h1>
+    <form action="/upload" method="post" enctype="multipart/form-data">
+        <label for="image1">Face Image:</label>
+        <input type="file" id="image1" name="image1" accept="image/*" required><br><br>
+        <label for="image2">Iris Image:</label>
+        <input type="file" id="image2" name="image2" accept="image/*" required><br><br>
+        <button type="submit">Submit</button>
+    </form>
+</body>
+</html>
+styles.css
+css
+body {
+    font-family: Arial, sans-serif;
+    text-align: center;
+    margin-top: 50px;
+}
+
+
+h1 {
+    color: #333;
+}
+
+form {
+    margin: auto;
+    display: inline-block;
+}
+
+button {
+    padding: 10px 20px;
+    background-color: #007BFF;
+    color: white;
+    border: none;
+    cursor: pointer;
+}
+
+button:hover {
+    background-color: #0056b3;
+}
+requirements.txt
+Flask
+tensorflow
+opencv-python
+
